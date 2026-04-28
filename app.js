@@ -296,11 +296,20 @@ async function fetchProgramPage(editor, options = {}) {
     return;
   }
 
+  if (!hasExtractorApi()) {
+    setProgramStatus(status, "Website URL fetching only works from the local Node server. Run node server.mjs, open http://localhost:4173, then fetch again.", "error");
+    return;
+  }
+
   setProgramStatus(status, "Fetching and cleaning the webpage...", "");
   try {
     const response = await fetch(`/api/extract?url=${encodeURIComponent(url)}`);
-    if (!response.ok) throw new Error(await response.text());
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      throw new Error("The extractor API is not available. Run node server.mjs and open http://localhost:4173.");
+    }
     const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || `The webpage returned ${response.status}.`);
     textInput.value = payload.text || "";
     if (!nameInput.value.trim() && payload.title) nameInput.value = payload.title;
     setProgramStatus(status, `Cleaned ${payload.sectionsKept} program-like sections.`, "ok");
@@ -317,12 +326,20 @@ function updateSourceStatus(editor) {
   const status = editor.querySelector(".program-status");
   editor.dataset.source = sourceType;
   if (sourceType === "webpage") {
-    setProgramStatus(status, "Fetch the page to extract program details before analysis.", "");
+    const message = hasExtractorApi()
+      ? "Fetch the page to extract program details before analysis."
+      : "Website URL fetching requires the local server: run node server.mjs and open http://localhost:4173.";
+    setProgramStatus(status, message, hasExtractorApi() ? "" : "error");
   } else if (sourceType === "webcopy") {
     setProgramStatus(status, "Navigation and marketing boilerplate will be filtered before analysis.", "");
   } else {
     setProgramStatus(status, "Catalog text uses the pasted details as-is.", "");
   }
+}
+
+function hasExtractorApi() {
+  return location.protocol === "http:" &&
+    ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
 }
 
 function setProgramStatus(status, message, tone) {
