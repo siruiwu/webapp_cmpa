@@ -12,6 +12,12 @@ node server.mjs
 
 Then visit `http://localhost:4173`.
 
+If `node` is not recognized in PowerShell, run:
+
+```powershell
+.\start-server.ps1
+```
+
 Website URL fetching will not work from GitHub Pages or by opening `index.html` directly, because the app needs the local `/api/extract` endpoint in `server.mjs` to fetch external pages and avoid browser CORS limits.
 
 ## Current Flow
