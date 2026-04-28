@@ -23,15 +23,23 @@ const state = {
 const STOP_WORDS = new Set([
   "a", "about", "above", "after", "again", "against", "all", "also", "am", "an", "and",
   "any", "are", "as", "at", "be", "because", "been", "before", "being", "between", "both",
-  "but", "by", "can", "course", "courses", "degree", "department", "do", "does", "doing",
-  "during", "each", "for", "from", "further", "had", "has", "have", "having", "he", "her",
+  "but", "by", "campus", "can", "career", "careers", "certificate", "college", "contact",
+  "course", "courses", "credit", "credits", "curriculum", "degree", "department", "do", "does", "doing",
+  "during", "each", "faculty", "fees", "for", "from", "further", "graduate", "had", "has", "have", "having", "he", "her",
   "here", "hers", "him", "his", "how", "i", "if", "in", "into", "is", "it", "its", "itself",
-  "learn", "learning", "major", "may", "more", "most", "of", "on", "or", "other", "our",
-  "out", "over", "own", "program", "programs", "school", "she", "should", "so", "some",
+  "learn", "learning", "major", "may", "more", "most", "online", "of", "on", "or", "other", "our",
+  "out", "over", "overview", "own", "page", "pathway", "program", "programs", "school", "she", "should", "so", "some",
   "student", "students", "study", "such", "than", "that", "the", "their", "them", "then",
-  "there", "these", "they", "this", "those", "through", "to", "under", "until", "up", "very",
+  "there", "these", "they", "this", "those", "through", "to", "transfer", "tuition", "under", "undergraduate", "until", "up", "very",
   "was", "we", "were", "what", "when", "where", "which", "while", "who", "whom", "why",
-  "will", "with", "within", "you", "your"
+  "will", "with", "within", "year", "years", "you", "your"
+]);
+
+const LOW_SIGNAL_TERMS = new Set([
+  "admission", "admissions", "apply", "application", "available", "based", "choose",
+  "complete", "completion", "education", "eligible", "enroll", "experience", "field",
+  "full", "information", "opportunities", "option", "options", "prepare", "professional",
+  "requirements", "required", "skills", "support", "work"
 ]);
 
 const DEMO_PROGRAMS = [
@@ -104,6 +112,30 @@ function ngrams(tokens, min = 1, max = 3) {
   return phrases;
 }
 
+function splitSentences(text) {
+  return text
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!?])\s+|[\n\r]+/)
+    .map(sentence => sentence.trim())
+    .filter(sentence => sentence.length > 20);
+}
+
+function findSourceSentence(text, phrase) {
+  const words = phrase.split(" ");
+  const sentences = splitSentences(text);
+  return sentences.find(sentence => {
+    const lower = sentence.toLowerCase();
+    return words.every(word => lower.includes(word));
+  }) || "";
+}
+
+function hasSignal(term) {
+  const words = term.split(" ");
+  if (words.some(word => LOW_SIGNAL_TERMS.has(word))) return false;
+  if (words.length === 1 && words[0].length < 5) return false;
+  return words.some(word => word.length > 4);
+}
+
 function countTerms(terms) {
   return terms.reduce((counts, term) => {
     counts.set(term, (counts.get(term) || 0) + 1);
@@ -128,7 +160,7 @@ function analyzePrograms() {
     return {
       ...program,
       tokens,
-      terms: countTerms(ngrams(tokens, 1, 3))
+      terms: countTerms(ngrams(tokens, 1, 4))
     };
   });
 
@@ -140,21 +172,32 @@ function analyzePrograms() {
   });
 
   state.analysis = docs.map(doc => {
-    const scored = [...doc.terms.entries()]
+    let scored = [...doc.terms.entries()]
       .map(([term, frequency]) => {
         const phraseLength = term.split(" ").length;
-        const idf = Math.log((docs.length + 1) / ((documentFrequency.get(term) || 0) + 0.5));
-        const score = frequency * idf * (1 + phraseLength * 0.35);
-        return { term, frequency, score };
+        const df = documentFrequency.get(term) || 0;
+        const idf = Math.log((docs.length + 1) / (df + 0.5));
+        const uniquenessBoost = df === 1 ? 2.4 : 1;
+        const score = frequency * idf * uniquenessBoost * (1 + phraseLength * 0.55);
+        return {
+          term,
+          frequency,
+          documentFrequency: df,
+          score,
+          sentence: findSourceSentence(doc.text, term)
+        };
       })
-      .filter(item => item.score > 0 && item.term.length > 3)
+      .filter(item => item.score > 0 && item.term.length > 3 && hasSignal(item.term))
       .sort((a, b) => b.score - a.score);
+
+    const uniqueScored = scored.filter(item => item.documentFrequency === 1);
+    if (uniqueScored.length >= 3) scored = uniqueScored;
 
     return {
       id: doc.id,
       name: doc.name,
       text: doc.text,
-      features: buildFeatures(scored, doc.text, doc.name)
+      features: buildFeatures(scored)
     };
   });
 
@@ -163,28 +206,33 @@ function analyzePrograms() {
   emptyState.classList.add("is-hidden");
 }
 
-function buildFeatures(scoredTerms, text, programName) {
+function buildFeatures(scoredTerms) {
   const picked = [];
   const usedWords = new Set();
+  const usedLabels = new Set();
 
   for (const item of scoredTerms) {
     const words = item.term.split(" ");
-    const tooSimilar = words.some(word => usedWords.has(word));
-    if (tooSimilar && picked.length >= 3) continue;
+    const overlap = words.filter(word => usedWords.has(word)).length / words.length;
+    const studentText = toStudentFeature(item.term, item.sentence);
+    if (overlap > 0.45 || usedLabels.has(studentText)) continue;
+
     picked.push({
       phrase: item.term,
       score: item.score,
-      studentText: toStudentFeature(item.term, text, programName),
-      keywords: words.slice(0, 4)
+      sourceSentence: item.sentence,
+      studentText,
+      keywords: words.slice(0, 5)
     });
     words.forEach(word => usedWords.add(word));
+    usedLabels.add(studentText);
     if (picked.length === 6) break;
   }
 
   return picked;
 }
 
-function toStudentFeature(phrase, text) {
+function toStudentFeature(phrase, sourceSentence = "") {
   const lower = phrase.toLowerCase();
   const categories = [
     { match: ["lab", "laboratory", "experiment", "biotechnology"], text: "doing hands-on lab experiments" },
@@ -199,9 +247,22 @@ function toStudentFeature(phrase, text) {
     { match: ["team", "teams", "clients", "present"], text: "working with other people and presenting your ideas" }
   ];
 
-  const category = categories.find(item => item.match.some(word => lower.includes(word) || text.toLowerCase().includes(word)));
+  const category = categories.find(item => item.match.some(word => lower.includes(word)));
   if (category) return category.text;
+
+  if (/ing\b/.test(lower.split(" ")[0])) return phrase;
+  if (sourceSentence && sourceSentence.length < 150) return simplifySentence(sourceSentence);
   return `learning about ${phrase}`;
+}
+
+function simplifySentence(sentence) {
+  return sentence
+    .replace(/^students\s+(will\s+)?/i, "")
+    .replace(/^the program\s+(includes|focuses on|offers)\s+/i, "")
+    .replace(/^this program\s+(includes|focuses on|offers)\s+/i, "")
+    .replace(/\.$/, "")
+    .trim()
+    .toLowerCase();
 }
 
 function renderFeatures() {
@@ -209,14 +270,17 @@ function renderFeatures() {
   state.analysis.forEach(program => {
     const card = document.createElement("article");
     card.className = "feature-card";
-    const featureList = program.features.map(feature => `
+    const featureList = program.features.length
+      ? program.features.map(feature => `
       <li class="feature-item">
         <strong>${escapeHtml(feature.studentText)}</strong>
         <div class="keyword-row">
           ${feature.keywords.map(keyword => `<span class="keyword">${escapeHtml(keyword)}</span>`).join("")}
         </div>
+        ${feature.sourceSentence ? `<p>${escapeHtml(feature.sourceSentence)}</p>` : ""}
       </li>
-    `).join("");
+    `).join("")
+      : `<li class="feature-item"><strong>No strong unique component found.</strong><p>Try pasting more specific text, such as courses, outcomes, internships, projects, labs, or concentrations.</p></li>`;
 
     card.innerHTML = `
       <header>
