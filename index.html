@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CMPA Program Preference Tool</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">CMPA prototype</p>
+        <h1>Program Preference Tool</h1>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-button" id="loadDemoBtn" type="button" title="Load demo programs" aria-label="Load demo programs">
+          <span aria-hidden="true">+</span>
+        </button>
+        <button class="primary-button" id="analyzeBtn" type="button">Analyze</button>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <section class="workspace-panel input-panel" aria-labelledby="programsTitle">
+        <div class="panel-heading">
+          <div>
+            <h2 id="programsTitle">Programs</h2>
+            <p>Add catalog text, website copy, outcomes, courses, or program notes.</p>
+          </div>
+          <button class="ghost-button" id="addProgramBtn" type="button">Add program</button>
+        </div>
+
+        <div class="upload-strip">
+          <label for="itemBankInput">Item bank CSV</label>
+          <input id="itemBankInput" type="file" accept=".csv,text/csv">
+          <span id="itemBankStatus">Optional</span>
+        </div>
+
+        <div id="programList" class="program-list"></div>
+      </section>
+
+      <section class="workspace-panel results-panel" aria-labelledby="resultsTitle">
+        <div class="panel-heading">
+          <div>
+            <h2 id="resultsTitle">Unique Components</h2>
+            <p>Distinctive features are rewritten into grade-10 survey language.</p>
+          </div>
+          <div class="segmented" role="tablist" aria-label="View">
+            <button class="segment is-active" type="button" data-view="features">Features</button>
+            <button class="segment" type="button" data-view="survey">Survey</button>
+            <button class="segment" type="button" data-view="match">Match</button>
+          </div>
+        </div>
+
+        <div id="emptyState" class="empty-state">
+          <strong>Ready when you are.</strong>
+          <span>Load the demo or paste program descriptions, then run the analysis.</span>
+        </div>
+
+        <div id="featuresView" class="view is-active">
+          <div id="featureSummary" class="feature-summary"></div>
+        </div>
+
+        <div id="surveyView" class="view">
+          <div class="survey-toolbar">
+            <label class="toggle-row">
+              <input type="checkbox" id="includeLikert" checked>
+              <span>Likert</span>
+            </label>
+            <label class="toggle-row">
+              <input type="checkbox" id="includeForced" checked>
+              <span>Forced choice</span>
+            </label>
+            <button class="ghost-button" id="buildSurveyBtn" type="button">Build survey</button>
+          </div>
+          <form id="surveyForm" class="survey-form"></form>
+        </div>
+
+        <div id="matchView" class="view">
+          <div id="matchResults" class="match-results"></div>
+        </div>
+      </section>
+    </main>
+
+    <template id="programTemplate">
+      <article class="program-editor">
+        <div class="program-row">
+          <input class="program-name" type="text" aria-label="Program name">
+          <button class="icon-button remove-program" type="button" title="Remove program" aria-label="Remove program">
+            <span aria-hidden="true">x</span>
+          </button>
+        </div>
+        <textarea class="program-text" spellcheck="true" aria-label="Program details"></textarea>
+      </article>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
