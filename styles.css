@@ -222,6 +222,63 @@ p {
   margin-bottom: 10px;
 }
 
+.source-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 190px) auto 1fr;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 10px;
+}
+
+.source-row label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.source-row select,
+.program-url {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0 10px;
+}
+
+.program-status {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.3;
+}
+
+.program-status.is-error {
+  color: var(--rose);
+  font-weight: 700;
+}
+
+.program-status.is-ok {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.program-url {
+  display: none;
+  margin-bottom: 10px;
+}
+
+.program-editor[data-source="webpage"] .program-url {
+  display: block;
+}
+
+.program-editor[data-source="catalog"] .fetch-program,
+.program-editor[data-source="webcopy"] .fetch-program {
+  display: none;
+}
+
 .program-name,
 .program-text {
   width: 100%;
@@ -449,6 +506,10 @@ p {
   .topbar-actions,
   .survey-toolbar {
     justify-content: flex-start;
+  }
+
+  .source-row {
+    grid-template-columns: 1fr;
   }
 
   .segmented {

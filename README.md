@@ -4,7 +4,7 @@ A dependency-free prototype web app for comparing school programs, detecting dis
 
 ## Run
 
-Open `index.html` in a browser, or serve this folder locally:
+Open `index.html` in a browser for pasted catalog text, or serve this folder locally when you want to fetch program webpages:
 
 ```powershell
 node server.mjs
@@ -14,7 +14,11 @@ Then visit `http://localhost:4173`.
 
 ## Current Flow
 
-1. Paste two or more program descriptions, or load the built-in demo.
+1. Add two or more programs.
+2. Choose the source type:
+   - **Catalog text** uses pasted program/catalog details directly.
+   - **Website URL** fetches the page through the local server and extracts likely program description, course, curriculum, outcomes, career, and target-student sections.
+   - **Pasted website copy** filters common website navigation and marketing boilerplate before analysis.
 2. Click **Analyze**.
 3. Review unique components detected with TF-IDF-style phrase scoring.
 4. Build Likert and/or forced-choice items.

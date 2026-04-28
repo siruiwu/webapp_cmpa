@@ -25,7 +25,7 @@
         <div class="panel-heading">
           <div>
             <h2 id="programsTitle">Programs</h2>
-            <p>Add catalog text, website copy, outcomes, courses, or program notes.</p>
+            <p>Add catalog text directly, or give a program webpage for cleaning first.</p>
           </div>
           <button class="ghost-button" id="addProgramBtn" type="button">Add program</button>
         </div>
@@ -90,7 +90,20 @@
             <span aria-hidden="true">x</span>
           </button>
         </div>
-        <textarea class="program-text" spellcheck="true" aria-label="Program details"></textarea>
+        <div class="source-row">
+          <label>
+            <span>Source</span>
+            <select class="program-source" aria-label="Program source type">
+              <option value="catalog">Catalog text</option>
+              <option value="webpage">Website URL</option>
+              <option value="webcopy">Pasted website copy</option>
+            </select>
+          </label>
+          <button class="ghost-button fetch-program" type="button">Fetch page</button>
+          <span class="program-status">Catalog text uses the pasted details as-is.</span>
+        </div>
+        <input class="program-url" type="url" placeholder="https://example.edu/program-page" aria-label="Program webpage URL">
+        <textarea class="program-text" spellcheck="true" aria-label="Program details" placeholder="Paste catalog description, course list, outcomes, target students, projects, or webpage copy."></textarea>
       </article>
     </template>
 

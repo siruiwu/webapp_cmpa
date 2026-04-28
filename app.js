@@ -64,9 +64,23 @@ const DEMO_PROGRAMS = [
 function addProgram(program = {}) {
   const node = programTemplate.content.firstElementChild.cloneNode(true);
   const nameInput = node.querySelector(".program-name");
+  const sourceInput = node.querySelector(".program-source");
+  const urlInput = node.querySelector(".program-url");
   const textInput = node.querySelector(".program-text");
+  const status = node.querySelector(".program-status");
   nameInput.value = program.name || `Program ${programList.children.length + 1}`;
+  sourceInput.value = program.sourceType || "catalog";
+  urlInput.value = program.url || "";
   textInput.value = program.text || "";
+  node.dataset.source = sourceInput.value;
+  updateSourceStatus(node);
+  sourceInput.addEventListener("change", () => {
+    node.dataset.source = sourceInput.value;
+    updateSourceStatus(node);
+  });
+  node.querySelector(".fetch-program").addEventListener("click", async () => {
+    await fetchProgramPage(node);
+  });
   node.querySelector(".remove-program").addEventListener("click", () => {
     node.remove();
     readProgramsFromDom();
@@ -85,9 +99,15 @@ function readProgramsFromDom() {
     .map((node, index) => ({
       id: `program-${index}`,
       name: node.querySelector(".program-name").value.trim() || `Program ${index + 1}`,
+      sourceType: node.querySelector(".program-source").value,
+      url: node.querySelector(".program-url").value.trim(),
       text: node.querySelector(".program-text").value.trim()
     }))
-    .filter(program => program.text.length > 0);
+    .map(program => ({
+      ...program,
+      text: program.sourceType === "webcopy" ? cleanWebsiteCopy(program.text) : program.text
+    }))
+    .filter(program => program.text.length > 0 || program.url.length > 0);
 }
 
 function tokenize(text) {
@@ -143,11 +163,18 @@ function countTerms(terms) {
   }, new Map());
 }
 
-function analyzePrograms() {
+async function analyzePrograms() {
   readProgramsFromDom();
   surveyForm.innerHTML = "";
   matchResults.innerHTML = "";
   state.questions = [];
+
+  await hydrateWebPrograms();
+
+  const analyzablePrograms = state.programs.filter(program => program.text.trim().length > 0);
+  if (analyzablePrograms.length !== state.programs.length) {
+    state.programs = analyzablePrograms;
+  }
 
   if (state.programs.length < 2) {
     showNotice(featureSummary, "Add at least two program descriptions before analyzing.");
@@ -204,6 +231,90 @@ function analyzePrograms() {
   renderFeatures();
   buildSurvey();
   emptyState.classList.add("is-hidden");
+}
+
+async function hydrateWebPrograms() {
+  const editors = [...programList.querySelectorAll(".program-editor")];
+  for (const [index, program] of state.programs.entries()) {
+    if (program.sourceType !== "webpage" || program.text.trim().length > 0) continue;
+    const editor = editors[index];
+    if (editor) await fetchProgramPage(editor, { silent: true });
+  }
+  readProgramsFromDom();
+}
+
+async function fetchProgramPage(editor, options = {}) {
+  const urlInput = editor.querySelector(".program-url");
+  const textInput = editor.querySelector(".program-text");
+  const nameInput = editor.querySelector(".program-name");
+  const status = editor.querySelector(".program-status");
+  const url = urlInput.value.trim();
+
+  if (!url) {
+    setProgramStatus(status, "Add a URL first.", "error");
+    return;
+  }
+
+  setProgramStatus(status, "Fetching and cleaning the webpage...", "");
+  try {
+    const response = await fetch(`/api/extract?url=${encodeURIComponent(url)}`);
+    if (!response.ok) throw new Error(await response.text());
+    const payload = await response.json();
+    textInput.value = payload.text || "";
+    if (!nameInput.value.trim() && payload.title) nameInput.value = payload.title;
+    setProgramStatus(status, `Cleaned ${payload.sectionsKept} program-like sections.`, "ok");
+  } catch (error) {
+    const fallback = options.silent
+      ? "Could not fetch this URL. Paste the program description or run with node server.mjs."
+      : `Could not fetch this URL. ${error.message || "Paste the relevant program text instead."}`;
+    setProgramStatus(status, fallback, "error");
+  }
+}
+
+function updateSourceStatus(editor) {
+  const sourceType = editor.querySelector(".program-source").value;
+  const status = editor.querySelector(".program-status");
+  editor.dataset.source = sourceType;
+  if (sourceType === "webpage") {
+    setProgramStatus(status, "Fetch the page to extract program details before analysis.", "");
+  } else if (sourceType === "webcopy") {
+    setProgramStatus(status, "Navigation and marketing boilerplate will be filtered before analysis.", "");
+  } else {
+    setProgramStatus(status, "Catalog text uses the pasted details as-is.", "");
+  }
+}
+
+function setProgramStatus(status, message, tone) {
+  status.textContent = message;
+  status.classList.toggle("is-error", tone === "error");
+  status.classList.toggle("is-ok", tone === "ok");
+}
+
+function cleanWebsiteCopy(text) {
+  const boilerplate = [
+    "about", "academic calendar", "admissions", "apply now", "campus", "contact",
+    "cookie", "copyright", "donate", "events", "facebook", "financial aid",
+    "footer", "instagram", "login", "menu", "news", "privacy", "request information",
+    "search", "share", "site map", "skip to content", "social", "twitter", "youtube"
+  ];
+
+  return splitSentences(text)
+    .filter(sentence => {
+      const lower = sentence.toLowerCase();
+      if (sentence.length < 35) return false;
+      if (boilerplate.some(term => lower === term || lower.startsWith(`${term} `))) return false;
+      return hasProgramSignal(lower);
+    })
+    .join(" ");
+}
+
+function hasProgramSignal(text) {
+  return [
+    "career", "capstone", "concentration", "course", "curriculum", "degree",
+    "design", "field", "internship", "lab", "learn", "learning outcome",
+    "major", "minor", "project", "research", "skill", "student", "study",
+    "target", "training", "work placement"
+  ].some(term => text.includes(term));
 }
 
 function buildFeatures(scoredTerms) {
