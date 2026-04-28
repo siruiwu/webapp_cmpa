@@ -103,20 +103,48 @@ function readProgramsFromDom() {
       url: node.querySelector(".program-url").value.trim(),
       text: node.querySelector(".program-text").value.trim()
     }))
+    .map(program => {
+      const pastedUrl = extractFirstUrl(program.text);
+      if (!program.url && pastedUrl && normalizeProgramText(program.text).length === 0) {
+        return {
+          ...program,
+          sourceType: "webpage",
+          url: pastedUrl,
+          text: ""
+        };
+      }
+      return program;
+    })
     .map(program => ({
       ...program,
-      text: program.sourceType === "webcopy" ? cleanWebsiteCopy(program.text) : program.text
+      text: normalizeProgramText(program.sourceType === "webcopy" ? cleanWebsiteCopy(program.text) : program.text)
     }))
     .filter(program => program.text.length > 0 || program.url.length > 0);
 }
 
+function extractFirstUrl(text) {
+  return text.match(/https?:\/\/\S+/i)?.[0] || "";
+}
+
 function tokenize(text) {
-  return text
+  return normalizeProgramText(text)
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, " ")
+    .replace(/[-_/]+/g, " ")
+    .replace(/[^a-z\s]/g, " ")
     .split(/\s+/)
     .map(token => token.replace(/^-+|-+$/g, ""))
-    .filter(token => token.length > 2 && !STOP_WORDS.has(token));
+    .filter(token => token.length > 2 && token.length < 28 && !STOP_WORDS.has(token));
+}
+
+function normalizeProgramText(text) {
+  return text
+    .replace(/https?:\/\/\S+/gi, " ")
+    .replace(/\bwww\.\S+/gi, " ")
+    .replace(/\b\S+@\S+\.\S+\b/g, " ")
+    .replace(/\b[a-z]+:\/\/\S+/gi, " ")
+    .replace(/[?#][^\s]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function ngrams(tokens, min = 1, max = 3) {
@@ -133,7 +161,7 @@ function ngrams(tokens, min = 1, max = 3) {
 }
 
 function splitSentences(text) {
-  return text
+  return normalizeProgramText(text)
     .replace(/\s+/g, " ")
     .split(/(?<=[.!?])\s+|[\n\r]+/)
     .map(sentence => sentence.trim())
@@ -151,9 +179,17 @@ function findSourceSentence(text, phrase) {
 
 function hasSignal(term) {
   const words = term.split(" ");
+  if (isUrlLikeTerm(term)) return false;
   if (words.some(word => LOW_SIGNAL_TERMS.has(word))) return false;
   if (words.length === 1 && words[0].length < 5) return false;
   return words.some(word => word.length > 4);
+}
+
+function isUrlLikeTerm(term) {
+  const compact = term.replace(/\s+/g, "");
+  if (/https?|www|html|ubc|ualberta|dotcom|dotca/.test(compact)) return true;
+  if (compact.length > 24 && !/[aeiou]{2}/.test(compact)) return true;
+  return false;
 }
 
 function countTerms(terms) {
@@ -238,7 +274,12 @@ async function hydrateWebPrograms() {
   for (const [index, program] of state.programs.entries()) {
     if (program.sourceType !== "webpage" || program.text.trim().length > 0) continue;
     const editor = editors[index];
-    if (editor) await fetchProgramPage(editor, { silent: true });
+    if (editor) {
+      editor.querySelector(".program-source").value = "webpage";
+      editor.querySelector(".program-url").value = program.url;
+      editor.dataset.source = "webpage";
+      await fetchProgramPage(editor, { silent: true });
+    }
   }
   readProgramsFromDom();
 }
@@ -298,7 +339,7 @@ function cleanWebsiteCopy(text) {
     "search", "share", "site map", "skip to content", "social", "twitter", "youtube"
   ];
 
-  return splitSentences(text)
+  return splitSentences(normalizeProgramText(text))
     .filter(sentence => {
       const lower = sentence.toLowerCase();
       if (sentence.length < 35) return false;
@@ -354,15 +395,14 @@ function toStudentFeature(phrase, sourceSentence = "") {
     { match: ["community", "justice", "neighborhoods", "public"], text: "working on real problems in a community" },
     { match: ["business", "market", "sales", "startup", "revenue"], text: "building and testing business ideas" },
     { match: ["budgeting", "financial", "customer", "pitch"], text: "making practical decisions about money and customers" },
-    { match: ["research", "data", "analysis", "surveys"], text: "using evidence and data to answer questions" },
     { match: ["team", "teams", "clients", "present"], text: "working with other people and presenting your ideas" }
   ];
 
+  if (sourceSentence && sourceSentence.length < 150) return simplifySentence(sourceSentence);
   const category = categories.find(item => item.match.some(word => lower.includes(word)));
   if (category) return category.text;
-
   if (/ing\b/.test(lower.split(" ")[0])) return phrase;
-  if (sourceSentence && sourceSentence.length < 150) return simplifySentence(sourceSentence);
+  if (phrase.split(" ").length > 1) return phrase;
   return `learning about ${phrase}`;
 }
 

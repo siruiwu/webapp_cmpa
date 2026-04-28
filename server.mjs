@@ -100,7 +100,7 @@ function extractProgramText(html) {
 
   const lines = decodeHtml(body)
     .split(/\n+/)
-    .map(line => line.replace(/\s+/g, " ").trim())
+    .map(line => normalizeExtractedText(line))
     .filter(Boolean);
 
   const programSignals = [
@@ -136,6 +136,8 @@ function extractProgramText(html) {
   const text = [metaDescription, ...selected]
     .filter(Boolean)
     .join(" ")
+    .replace(/https?:\/\/\S+/gi, " ")
+    .replace(/\bwww\.\S+/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -154,4 +156,13 @@ function decodeHtml(value) {
     .replace(/&#39;/g, "'")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">");
+}
+
+function normalizeExtractedText(value) {
+  return value
+    .replace(/https?:\/\/\S+/gi, " ")
+    .replace(/\bwww\.\S+/gi, " ")
+    .replace(/\b\S+@\S+\.\S+\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
