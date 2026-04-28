@@ -18,6 +18,14 @@ If `node` is not recognized in PowerShell, run:
 .\start-server.ps1
 ```
 
+If PowerShell blocks scripts, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-server.ps1
+```
+
+The launcher uses Node.js when it is available. If Node.js is not installed, it falls back to a built-in PowerShell server with the same webpage extraction endpoint.
+
 Website URL fetching will not work from GitHub Pages or by opening `index.html` directly, because the app needs the local `/api/extract` endpoint in `server.mjs` to fetch external pages and avoid browser CORS limits.
 
 ## Current Flow
