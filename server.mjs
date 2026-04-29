@@ -47,14 +47,24 @@ async function handleExtract(url, response) {
   }
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
     const page = await fetch(target, {
+      signal: controller.signal,
       headers: {
-        "User-Agent": "CMPA Program Preference Tool/0.1"
+        "User-Agent": browserUserAgent(),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "no-cache"
       }
     });
+    clearTimeout(timeout);
 
     if (!page.ok) {
-      sendJson(response, page.status, { error: `The webpage returned ${page.status}.` });
+      const message = page.status === 403
+        ? "This website blocks automated fetching. Open the page in your browser, copy the program description/course/outcome text, and use Pasted website copy."
+        : `The webpage returned ${page.status}.`;
+      sendJson(response, page.status, { error: message });
       return;
     }
 
@@ -67,8 +77,15 @@ async function handleExtract(url, response) {
       sectionsKept: extracted.sectionsKept
     });
   } catch (error) {
-    sendJson(response, 500, { error: error.message || "Could not fetch the webpage." });
+    const message = error.name === "AbortError"
+      ? "The webpage took too long to respond. Paste the program text or try again later."
+      : error.message || "Could not fetch the webpage.";
+    sendJson(response, 500, { error: message });
   }
+}
+
+function browserUserAgent() {
+  return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 }
 
 function sendJson(response, status, payload) {

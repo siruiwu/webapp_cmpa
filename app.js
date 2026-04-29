@@ -315,8 +315,8 @@ async function fetchProgramPage(editor, options = {}) {
     setProgramStatus(status, `Cleaned ${payload.sectionsKept} program-like sections.`, "ok");
   } catch (error) {
     const fallback = options.silent
-      ? "Could not fetch this URL. Paste the program description or run with node server.mjs."
-      : `Could not fetch this URL. ${error.message || "Paste the relevant program text instead."}`;
+      ? "Paste the program description, use Pasted website copy, or run the local server."
+      : error.message || "Paste the relevant program text instead.";
     setProgramStatus(status, fallback, "error");
   }
 }

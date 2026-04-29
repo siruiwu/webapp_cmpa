@@ -60,6 +60,15 @@ function Normalize-ExtractedText {
     -replace '\s+', ' ').Trim()
 }
 
+function Get-BrowserHeaders {
+  return @{
+    "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    "Accept" = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    "Accept-Language" = "en-US,en;q=0.9"
+    "Cache-Control" = "no-cache"
+  }
+}
+
 function Extract-ProgramText {
   param([string] $Html)
 
@@ -136,11 +145,19 @@ try {
       }
 
       try {
-        $page = Invoke-WebRequest -Uri $target -UseBasicParsing -Headers @{ "User-Agent" = "CMPA Program Preference Tool/0.1" }
+        $page = Invoke-WebRequest -Uri $target -UseBasicParsing -Headers (Get-BrowserHeaders) -TimeoutSec 20
         $extracted = Extract-ProgramText $page.Content
         Send-TextResponse $response 200 ($extracted | ConvertTo-Json -Compress) "application/json; charset=utf-8"
       } catch {
-        $payload = @{ error = "Could not fetch the webpage. $($_.Exception.Message)" } | ConvertTo-Json -Compress
+        $message = $_.Exception.Message
+        if ($message -match "403|Forbidden") {
+          $message = "This website blocks automated fetching. Open the page in your browser, copy the program description/course/outcome text, and use Pasted website copy."
+        } elseif ($message -match "timed out|timeout") {
+          $message = "The webpage took too long to respond. Paste the program text or try again later."
+        } else {
+          $message = "Could not fetch the webpage. $message"
+        }
+        $payload = @{ error = $message } | ConvertTo-Json -Compress
         Send-TextResponse $response 500 $payload "application/json; charset=utf-8"
       }
       continue
